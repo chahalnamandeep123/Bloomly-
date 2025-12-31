@@ -2,134 +2,160 @@ import streamlit as st
 import pandas as pd
 import joblib
 from datetime import datetime
-from dateutil.parser import parse
 
-# -----------------------------
+# -------------------------------
 # Load models and data
-# -----------------------------
+# -------------------------------
 cycle_model = joblib.load("next_period_model.pkl")
 phase_model = joblib.load("cycle_phase_model.pkl")
-recommendations_df = pd.read_csv("Recommendations.csv")  # Your recommendations table
+recommendations_df = pd.read_csv("Recommendations.csv")
 
-# -----------------------------
-# Page config
-# -----------------------------
-st.set_page_config(page_title="BLOOMLY", page_icon="🌸", layout="centered")
+# -------------------------------
+# Custom CSS for cute feminine UI
+# -------------------------------
+st.markdown("""
+<style>
+/* Page background */
+body, .stApp {
+    background-color: #fff0f5;  /* soft lavender */
+    color: #4b004b;
+    font-family: 'Comic Sans MS', cursive, sans-serif;
+}
 
-# -----------------------------
-# Splash screen
-# -----------------------------
-st.markdown(
-    """
-    <div style="text-align:center; background-color:#FFE4E1; padding:40px; border-radius:20px;">
-        <img src='logo.png' width='150' style="background-color:#FFE4E1; border-radius:15px;">
-        <h1 style="font-family:sans-serif; color:#C71585;">BLOOMLY</h1>
-        <h3 style="font-family:sans-serif; color:#FF69B4;">Grow with Confidence</h3>
-    </div>
-    """, unsafe_allow_html=True
-)
+/* Logo and titles */
+.logo-fade img {
+    border-radius: 50%;
+    box-shadow: 0px 4px 10px rgba(255, 182, 193, 0.5);
+}
+.title-fade {
+    font-size: 48px;
+    font-weight: bold;
+    color: #d63384;
+}
+.slogan-fade {
+    font-size: 22px;
+    color: #ff66b2;
+    font-style: italic;
+}
 
+/* Input boxes */
+.css-1aumxhk, .stTextInput>div>input {
+    border-radius: 15px;
+    padding: 10px;
+    border: 2px solid #ffb6c1;
+    background-color: #fff0f5;
+}
+
+/* Buttons */
+.stButton>button {
+    background-color: #ff99cc;
+    color: white;
+    border-radius: 15px;
+    padding: 8px 20px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+.stButton>button:hover {
+    background-color: #ff66b2;
+}
+
+/* Community feed */
+.community-msg {
+    background-color: #ffe6f2;
+    padding: 10px;
+    border-radius: 15px;
+    margin-bottom: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------------
+# Splash / Logo with Fade-in
+# -------------------------------
+st.markdown('<div class="logo-fade" style="text-align:center;"><img src="Logo.png" width="150"></div>', unsafe_allow_html=True)
+st.markdown('<div class="title-fade" style="text-align:center;">BLOOMLY</div>', unsafe_allow_html=True)
+st.markdown('<div class="slogan-fade" style="text-align:center;">Grow with Confidence</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# -----------------------------
-# Login section (mock)
-# -----------------------------
+# -------------------------------
+# Login (mock)
+# -------------------------------
 st.subheader("Login")
-login_method = st.radio("Continue with", ["Google", "Microsoft", "Email"])
-if login_method == "Email":
-    email = st.text_input("Enter your email")
-    password = st.text_input("Enter your password", type="password")
+login_option = st.radio("Continue with:", ["Google", "Microsoft", "Email"])
+email = ""
+if login_option == "Email":
+    email = st.text_input("Enter your email:")
 
 st.markdown("---")
 
-# -----------------------------
-# Period tracking inputs
-# -----------------------------
-st.subheader("Period Tracker")
-st.markdown("Enter your previous period start dates (YYYY-MM-DD). You can enter multiple dates:")
+# -------------------------------
+# User period inputs
+# -------------------------------
+st.subheader("Enter your previous period dates")
+period_dates = st.text_area("Enter dates separated by commas (YYYY-MM-DD)", placeholder="2025-12-01,2025-12-28,...")
+period_dates = [d.strip() for d in period_dates.split(",") if d.strip()]
+st.subheader("PMS Symptoms")
+pms_symptoms = st.text_input("Enter current PMS symptoms (or 'None'):")
 
-period_dates_input = st.text_area("Previous Period Dates (one per line)")
-period_dates = []
-for date_str in period_dates_input.split("\n"):
-    try:
-        period_dates.append(parse(date_str.strip()))
-    except:
-        continue
-
-pms_symptoms = st.text_input("Current PMS symptoms (comma separated, or 'None')")
-
-# -----------------------------
-# Mood survey
-# -----------------------------
+# -------------------------------
+# Mood Survey
+# -------------------------------
 st.subheader("How are you feeling today?")
-mood = st.radio("Select your mood:", ["Great", "Good", "Okay", "Bad", "Not great"])
+mood = st.radio("Select your mood:", ["Great", "Good", "Okay", "Bad", "Not Great"])
 
-st.markdown("---")
-
-# -----------------------------
-# Predict next period & phase
-# -----------------------------
-if st.button("Predict My Cycle"):
-
+# -------------------------------
+# Predictions
+# -------------------------------
+if st.button("Get Predictions"):
     if len(period_dates) < 1:
-        st.warning("Please enter at least one previous period date.")
+        st.error("Please enter at least one previous period date.")
     else:
-        # Prepare input for model
-        prev_cycle_length = [(period_dates[i] - period_dates[i-1]).days for i in range(1, len(period_dates))]
-        if len(prev_cycle_length) == 0:
-            prev_cycle_length = [28]  # default if only one date
-        last_cycle_length = prev_cycle_length[-1]
+        # Prepare input features
+        prev_cycle_length = None
+        if len(period_dates) > 1:
+            prev_cycle_length = (datetime.strptime(period_dates[-1], "%Y-%m-%d") -
+                                 datetime.strptime(period_dates[-2], "%Y-%m-%d")).days
+        else:
+            prev_cycle_length = 28  # default if only one period
 
-        pms_label = 0 if pms_symptoms.strip().lower() in ["none", ""] else 1
+        pms_label = 0 if pms_symptoms.lower() in ["none", ""] else 1
+        X_input = [[prev_cycle_length, pms_label]]
 
-        X_input = [[last_cycle_length, pms_label]]
-
-        next_period_days = int(cycle_model.predict(X_input)[0])
-        cycle_phase_encoded = int(phase_model.predict(X_input)[0])
+        # Predictions
+        next_period = cycle_model.predict(X_input)[0]
+        cycle_phase_encoded = phase_model.predict(X_input)[0]
         # Decode phase
         phase_classes = phase_model.classes_
         current_phase = phase_classes[cycle_phase_encoded]
 
-        # Display results
-        st.success(f"Next period expected in {next_period_days} days.")
+        st.success(f"Your next period is expected in {round(next_period)} days.")
         st.info(f"Current cycle phase: {current_phase}")
 
-        # Show recommendations
-        recs = recommendations_df[
-            (recommendations_df['phase'] == current_phase) &
-            (recommendations_df['mood'] == mood)
-        ]
-        if not recs.empty:
-            st.subheader("Recommendations")
-            for i, row in recs.iterrows():
-                st.write(f"- {row['recommendation']}")
+        # Recommendations from CSV
+        recs = recommendations_df[recommendations_df['Phase'] == current_phase]
+        if len(recs) > 0:
+            st.subheader("Recommendations for you:")
+            for idx, row in recs.iterrows():
+                st.markdown(f"- **{row['Category']}**: {row['Recommendation']}")
         else:
-            st.info("No specific recommendations found for your phase and mood.")
+            st.info("No recommendations available for this phase.")
 
+# -------------------------------
+# Gamification / Community feed
+# -------------------------------
 st.markdown("---")
+st.subheader("Your Bloomly Progress")
+st.write("🌸 Total Streak: 12 days | 💎 Coins: 35 | 🌿 Gardens Grown: 5")
 
-# -----------------------------
-# Gamification
-# -----------------------------
-st.subheader("My Bloomly Stats 🌸")
-st.write("Streak days: 12")
-st.write("Coins earned: 45")
-st.write("Gardens grown: 3")
-
-st.markdown("---")
-
-# -----------------------------
-# Community feed
-# -----------------------------
-st.subheader("Community Feed 💬")
+st.subheader("Community Feed")
 community_messages = [
-    ("Aanya S.", "Does anyone else feel super tired a few days before their period even if they sleep enough?"),
-    ("Riya K.", "I started tracking my cycle properly this month and wow… it actually explains so much 😭"),
-    ("Mehak J.", "Low mood today for no reason. Glad this space exists honestly."),
-    ("Sara M.", "Is bloating before periods normal every single month? I feel like it’s getting worse."),
-    ("Ishita P.", "Anyone else get random cravings + mood swings at the same time??"),
-    ("Naina P.", "Just wanted to say this app makes me feel less alone. Thank you 🩷"),
+    {"name": "Loki", "msg": "Just completed my streak! Feeling amazing 🌸"},
+    {"name": "Mia", "msg": "Loving these recommendations, thanks Bloomly! 💖"},
+    {"name": "Sofia", "msg": "Can't wait to try the new meditation tip."},
+    {"name": "Rina", "msg": "My garden just grew another flower! 🌷"},
+    {"name": "Arya", "msg": "This app is so calming and helpful."},
+    {"name": "Leila", "msg": "Feeling great today, thanks to the mood tips! 🌼"}
 ]
+for m in community_messages:
+    st.markdown(f'<div class="community-msg"><b>{m["name"]}</b>: {m["msg"]}</div>', unsafe_allow_html=True)
 
-for name, msg in community_messages:
-    st.write(f"**{name}**: {msg}")
