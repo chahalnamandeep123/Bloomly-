@@ -14,7 +14,7 @@ phase_model = joblib.load("cycle_phase_model.pkl")
 # LOAD RECOMMENDATIONS
 # -------------------------------
 # Fixed encoding issue
-recommendations_df = pd.read_csv("Recommendations.csv", encoding="ISO-8859-1")
+recommendations_df = pd.read_csv("Recommendations.csv", encoding="ISO-8859-1", engine="python")
 
 # -------------------------------
 # Custom CSS for cute feminine UI
